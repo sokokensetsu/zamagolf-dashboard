@@ -510,12 +510,13 @@ async function getToken(){
   if(!CONFIG.clientId||!CONFIG.clientSecret) return null;
   const cred=btoa(`${CONFIG.clientId}:${CONFIG.clientSecret}`);
   const scope='pos.transactions:read pos.stores:read timecard.work_records:read timecard.staffs:read';
-  const r=await fetch(`https://id.smaregi.jp/app/${CONFIG.contract}/token`,{
+  const tokenUrl=`https://id.smaregi.jp/app/${CONFIG.contract}/token`;
+  const r=await fetch(`https://zamagolf-proxy.yanagihara-d46.workers.dev?url=${encodeURIComponent(tokenUrl)}`,{
     method:'POST',
     headers:{'Authorization':`Basic ${cred}`,'Content-Type':'application/x-www-form-urlencoded'},
     body:`grant_type=client_credentials&scope=${encodeURIComponent(scope)}`
   });
-  if(!r.ok) return null;
+  if(!r.ok){ console.error('Token error:',r.status, await r.text()); return null; }
   const d=await r.json();
   return d.access_token||null;
 }
@@ -523,9 +524,11 @@ async function getToken(){
 async function apiGet(path){
   if(!ACCESS_TOKEN) ACCESS_TOKEN=await getToken();
   if(!ACCESS_TOKEN) return null;
-  const base=`https://api.smaregi.jp/${CONFIG.contract}`;
-  const r=await fetch(base+path,{headers:{'Authorization':`Bearer ${ACCESS_TOKEN}`}});
-  if(!r.ok) return null;
+  const apiUrl=`https://api.smaregi.jp/${CONFIG.contract}${path}`;
+  const r=await fetch(`https://zamagolf-proxy.yanagihara-d46.workers.dev?url=${encodeURIComponent(apiUrl)}`,{
+    headers:{'Authorization':`Bearer ${ACCESS_TOKEN}`}
+  });
+  if(!r.ok){ console.error('API error:',r.status); return null; }
   return r.json();
 }
 
