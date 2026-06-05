@@ -17,8 +17,15 @@ export default {
       return new Response('Missing url param', { status: 400 });
     }
 
-    if (!target.startsWith('https://api.smaregi.jp/') &&
-        !target.startsWith('https://id.smaregi.jp/')) {
+    // スマレジAPIのみ許可（本番+開発環境）
+    const allowed = [
+      'https://api.smaregi.jp/',
+      'https://id.smaregi.jp/',
+      'https://api.smaregi.dev/',
+      'https://id.smaregi.dev/',
+    ];
+
+    if (!allowed.some(prefix => target.startsWith(prefix))) {
       return new Response('Forbidden', { status: 403 });
     }
 
