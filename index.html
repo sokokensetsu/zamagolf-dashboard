@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZAMAGOLF 経営ダッシュボード</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #f5f7f4;
+  --bg2:     #ffffff;
+  --bg3:     #f0f4ef;
+  --bg4:     #e6ede5;
+  --border:  #dde8db;
+  --border2: #b8d4b4;
+  --green:       #2e7d32;
+  --green-mid:   #43a047;
+  --green-light: #66bb6a;
+  --green-pale:  #e8f5e9;
+  --gold:        #b8860b;
+  --gold-pale:   #fff8e1;
+  --blue:        #2563a8;
+  --blue-pale:   #e8f0fb;
+  --text:        #1a2e1a;
+  --text2:       #4a6649;
+  --text3:       #7a9878;
+  --red:         #c62828;
+  --red-pale:    #ffebee;
+  --radius:      10px;
+  --shadow:      0 1px 4px rgba(30,60,30,0.08), 0 0 0 1px var(--border);
+  --shadow-hover:0 4px 16px rgba(30,60,30,0.12), 0 0 0 1px var(--border2);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 13px;
+  min-height: 100vh;
+}
+
+/* ── HEADER ── */
+.header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 28px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+}
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo-mark {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--green), var(--green-light));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  box-shadow: 0 2px 8px rgba(46,125,50,0.25);
+}
+.logo-text {
+  font-family: 'DM Serif Display', serif;
+  font-size: 20px;
+  letter-spacing: 0.06em;
+  color: var(--green);
+}
+.logo-sub {
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+.header-right { display: flex; align-items: center; gap: 14px; }
+.api-badge {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 20px;
+  font-size: 11px; font-weight: 500; cursor: pointer;
+  border: 1.5px solid; transition: all 0.2s;
+}
+.api-badge.demo { background: var(--gold-pale); border-color: #e0b030; color: var(--gold); }
+.api-badge.connected { background: var(--green-pale); border-color: var(--green-light); color: var(--green); }
+.api-badge .dot { width: 6px; height: 6px; border-radius: 50%; }
+.api-badge.demo .dot { background: #e0b030; }
+.api-badge.connected .dot { background: var(--green-light); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+.last-update { font-size: 11px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+.refresh-btn {
+  background: var(--green-pale); border: 1.5px solid var(--border2);
+  color: var(--green); padding: 6px 14px; border-radius: 8px;
+  font-size: 12px; cursor: pointer; font-family: 'Noto Sans JP', sans-serif;
+  display: flex; align-items: center; gap: 5px; transition: all 0.2s;
+}
+.refresh-btn:hover { background: var(--green); color: #fff; border-color: var(--green); }
+
+/* ── NAV ── */
+.nav {
+  background: var(--bg2);
+  border-bottom: 2px solid var(--border);
+  padding: 0 28px;
+  display: flex; gap: 0;
+}
+.nav-tab {
+  padding: 14px 20px;
+  font-size: 13px; color: var(--text3);
+  cursor: pointer; border: none; background: none;
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  transition: all 0.18s; font-family: 'Noto Sans JP', sans-serif;
+  white-space: nowrap;
+}
+.nav-tab:hover { color: var(--green-mid); }
+.nav-tab.active { color: var(--green); border-bottom-color: var(--green); font-weight: 500; }
+
+/* ── LAYOUT ── */
+.main { padding: 24px 28px; max-width: 1400px; }
+
+/* ── KPI STRIP ── */
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.kpi-card {
+  background: var(--bg2);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  transition: box-shadow 0.2s;
+  animation: fadeUp 0.35s ease both;
+}
+.kpi-card:hover { box-shadow: var(--shadow-hover); }
+.kpi-label { font-size: 10px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 7px; }
+.kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 500; color: var(--text); letter-spacing: -0.02em; line-height: 1; margin-bottom: 5px; }
+.kpi-value.sm { font-size: 16px; }
+.kpi-delta { font-size: 11px; display: flex; align-items: center; gap: 3px; }
+.kpi-delta.up { color: var(--green); }
+.kpi-delta.down { color: var(--red); }
+.kpi-delta.neutral { color: var(--text3); }
+.kpi-source { font-size: 9px; color: var(--text3); margin-top: 5px; letter-spacing: 0.08em; }
+.kpi-source span { background: var(--green-pale); color: var(--green); padding: 1px 5px; border-radius: 3px; font-weight: 500; }
+
+/* ── SEGMENT BANNER ── */
+.segment-banner { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 20px; }
+.seg {
+  background: var(--bg2);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  position: relative; overflow: hidden;
+  animation: fadeUp 0.45s ease both;
+  transition: box-shadow 0.2s;
+}
+.seg:hover { box-shadow: var(--shadow-hover); }
+.seg::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: 4px;
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+.seg.golf::after { background: var(--green); }
+.seg.school::after { background: var(--gold); }
+.seg.fee::after { background: var(--blue); }
+.seg-tag { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 5px; display: flex; align-items: center; gap: 6px; padding-left: 6px; }
+.seg.golf .seg-tag { color: var(--green); }
+.seg.school .seg-tag { color: var(--gold); }
+.seg.fee .seg-tag { color: var(--blue); }
+.seg-name { font-size: 12px; color: var(--text2); margin-bottom: 10px; padding-left: 6px; }
+.seg-amount { font-family: 'JetBrains Mono', monospace; font-size: 24px; font-weight: 500; margin-bottom: 4px; padding-left: 6px; letter-spacing: -0.02em; }
+.seg.golf .seg-amount { color: var(--green); }
+.seg.school .seg-amount { color: var(--gold); }
+.seg.fee .seg-amount { color: var(--blue); font-size: 17px; margin-top: 4px; }
+.seg-meta { font-size: 11px; color: var(--text3); padding-left: 6px; }
+.seg-bar { margin: 12px 6px 0; height: 4px; background: var(--bg4); border-radius: 2px; overflow: hidden; }
+.seg-bar-fill { height: 100%; border-radius: 2px; transition: width 1s ease; }
+.seg.golf .seg-bar-fill { background: linear-gradient(90deg, var(--green), var(--green-light)); }
+.seg.school .seg-bar-fill { background: linear-gradient(90deg, var(--gold), #e8c24b); }
+.seg.fee .seg-bar-fill { background: linear-gradient(90deg, var(--blue), #5a9ae8); }
+
+/* ── PANELS ── */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.grid3 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px; }
+.panel {
+  background: var(--bg2);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius);
+  padding: 20px;
+  animation: fadeUp 0.5s ease both;
+}
+.panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+.panel-title { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text2); font-weight: 500; }
+.panel-tag { font-size: 9px; padding: 3px 8px; border-radius: 4px; font-weight: 700; letter-spacing: 0.08em; }
+.panel-tag.smaregi { background: var(--green-pale); color: var(--green); }
+.panel-tag.hacomono { background: var(--gold-pale); color: var(--gold); }
+.panel-tag.both { background: var(--blue-pale); color: var(--blue); }
+
+/* ── CHART ── */
+.chart-wrap { position: relative; }
+.legend { display: flex; gap: 14px; margin-bottom: 10px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text3); }
+.legend-dot { width: 10px; height: 4px; border-radius: 2px; }
+
+/* ── TABLES ── */
+.data-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-tbl th {
+  font-size: 10px; color: var(--text3); text-align: left;
+  padding: 6px 10px; border-bottom: 2px solid var(--border);
+  font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase;
+  background: var(--bg3);
+}
+.data-tbl th:first-child { border-radius: 6px 0 0 0; }
+.data-tbl th:last-child { border-radius: 0 6px 0 0; }
+.data-tbl td { padding: 9px 10px; border-bottom: 1px solid var(--border); color: var(--text); }
+.data-tbl tr:last-child td { border-bottom: none; }
+.data-tbl td.num { text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text2); }
+.data-tbl tr:hover td { background: var(--green-pale); }
+.dow-badge { display: inline-block; width: 22px; text-align: center; font-size: 10px; border-radius: 4px; padding: 2px 0; }
+.dow-sat { background: #e3eeff; color: #2563a8; }
+.dow-sun { background: var(--red-pale); color: var(--red); }
+.dow-week { background: var(--bg3); color: var(--text3); }
+
+/* ── HACO BREAKDOWN ── */
+.haco-breakdown { display: flex; flex-direction: column; gap: 10px; }
+.haco-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 14px; background: var(--bg3);
+  border-radius: 8px; border: 1px solid var(--border);
+  transition: background 0.15s;
+}
+.haco-row:hover { background: var(--green-pale); }
+.haco-label { font-size: 12px; color: var(--text2); min-width: 160px; }
+.haco-bar-wrap { flex: 1; margin: 0 14px; height: 4px; background: var(--bg4); border-radius: 2px; }
+.haco-bar-inner { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--gold), #e8c24b); }
+.haco-amount { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--text); font-weight: 500; min-width: 90px; text-align: right; }
+
+/* ── SYSTEM NOTE ── */
+.sys-note {
+  background: var(--gold-pale);
+  border: 1px solid #e8c870;
+  border-left: 4px solid var(--gold);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 14px 16px; font-size: 12px; color: var(--text2);
+  line-height: 1.8; margin-bottom: 20px;
+}
+.sys-note strong { color: var(--gold); }
+.sys-note code {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  background: rgba(184,134,11,0.12); padding: 1px 6px;
+  border-radius: 3px; color: #7a5c00;
+}
+
+/* ── BAR MINI ── */
+.bar-mini { display: inline-block; height: 4px; border-radius: 2px; vertical-align: middle; margin-left: 8px; opacity: 0.5; }
+
+/* ── CONFIG ── */
+.config-field { margin-bottom: 14px; }
+.config-field label { display: block; font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; font-weight: 500; }
+.config-field input {
+  width: 100%; background: var(--bg3); border: 1.5px solid var(--border);
+  border-radius: 8px; padding: 10px 13px; color: var(--text);
+  font-family: 'JetBrains Mono', monospace; font-size: 12px; outline: none; transition: border-color 0.2s;
+}
+.config-field input:focus { border-color: var(--green); background: var(--bg2); box-shadow: 0 0 0 3px var(--green-pale); }
+.btn-save {
+  background: var(--green); border: none; color: #fff;
+  padding: 10px 22px; border-radius: 8px; cursor: pointer;
+  font-family: 'Noto Sans JP', sans-serif; font-size: 13px; font-weight: 500;
+  transition: background 0.2s; margin-top: 6px;
+}
+.btn-save:hover { background: var(--green-mid); }
+
+/* ── STEP LIST ── */
+.step { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+.step-num {
+  background: var(--green); color: #fff;
+  border-radius: 50%; width: 22px; height: 22px; min-width: 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+}
+.step-text { font-size: 12px; color: var(--text2); line-height: 1.7; padding-top: 1px; }
+.step-text code {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  background: var(--green-pale); padding: 1px 6px; border-radius: 3px; color: var(--green);
+}
+
+/* ── VIEWS ── */
+.view { display: none; }
+.view.active { display: block; }
+
+/* ── FOOTER ── */
+.footer {
+  padding: 14px 28px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; color: var(--text3); margin-top: 4px;
+  background: var(--bg2);
+}
+
+/* ── ANIMATION ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.kpi-card:nth-child(1){animation-delay:.05s}
+.kpi-card:nth-child(2){animation-delay:.10s}
+.kpi-card:nth-child(3){animation-delay:.15s}
+.kpi-card:nth-child(4){animation-delay:.20s}
+.kpi-card:nth-child(5){animation-delay:.25s}
+.seg:nth-child(1){animation-delay:.1s}
+.seg:nth-child(2){animation-delay:.15s}
+.seg:nth-child(3){animation-delay:.2s}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">
+    <div class="logo-mark">⛳</div>
+    <div>
+      <div class="logo-text">ZAMAGOLF</div>
+      <div class="logo-sub">経営ダッシュボード</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="api-badge demo" id="apiBadge" onclick="gotoConfig()">
+      <span class="dot"></span>
+      <span id="apiBadgeText">デモデータ</span>
+    </div>
+    <span class="last-update" id="lastUpdate">2026/06/05 14:22</span>
+    <button class="refresh-btn" onclick="refreshData()">↻ 更新</button>
+  </div>
+</div>
+
+<!-- NAV -->
+<div class="nav">
+  <button class="nav-tab active" onclick="setView('overview',this)">📊 概況</button>
+  <button class="nav-tab" onclick="setView('daily',this)">📅 日次</button>
+  <button class="nav-tab" onclick="setView('monthly',this)">📆 月次</button>
+  <button class="nav-tab" onclick="setView('school',this)">🎓 スクール</button>
+  <button class="nav-tab" onclick="setView('config',this)">⚙️ API設定</button>
+</div>
+
+<div class="main">
+
+<!-- ① 概況 -->
+<div class="view active" id="view-overview">
+  <div class="kpi-strip">
+    <div class="kpi-card">
+      <div class="kpi-label">本日売上（6/5）</div>
+      <div class="kpi-value sm">¥157,950</div>
+      <div class="kpi-delta neutral">取引 49件</div>
+      <div class="kpi-source"><span>SMAREGI</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">6月累計（5日間）</div>
+      <div class="kpi-value sm">¥1,287,170</div>
+      <div class="kpi-delta down">▼ 先月比 8.1%</div>
+      <div class="kpi-source"><span>SMAREGI</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">先月確定（5月）</div>
+      <div class="kpi-value sm">¥15,829,375</div>
+      <div class="kpi-delta up">▲ 前月比 16.7%</div>
+      <div class="kpi-source"><span>SMAREGI</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">スクール（5月）</div>
+      <div class="kpi-value sm">¥1,262,425</div>
+      <div class="kpi-delta up">▲ 前月比 22.9%</div>
+      <div class="kpi-source"><span>HACOMONO</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">合算 5月合計</div>
+      <div class="kpi-value sm">¥17,091,800</div>
+      <div class="kpi-delta neutral">単価 ¥3,101</div>
+      <div class="kpi-source"><span>SMAREGI</span> + <span>HACOMONO</span></div>
+    </div>
+  </div>
+
+  <div class="segment-banner">
+    <div class="seg golf">
+      <div class="seg-tag">● ゴルフ練習場・ショートコース</div>
+      <div class="seg-name">打席 / ショートコース / カゴボール 等</div>
+      <div class="seg-amount">¥15,736,375</div>
+      <div class="seg-meta">5月確定 ｜ 全体の 92.0%</div>
+      <div class="seg-bar"><div class="seg-bar-fill" style="width:92%"></div></div>
+    </div>
+    <div class="seg school">
+      <div class="seg-tag">● スクール（hacomono管理）</div>
+      <div class="seg-name">月会費 / レッスンチケット / 体験入会</div>
+      <div class="seg-amount">¥1,262,425</div>
+      <div class="seg-meta">5月確定 ｜ 全体の 7.4%</div>
+      <div class="seg-bar"><div class="seg-bar-fill" style="width:7.4%"></div></div>
+    </div>
+    <div class="seg fee">
+      <div class="seg-tag">● 奥嶋スクール開催手数料</div>
+      <div class="seg-name">施設側手数料収入（スマレジ・イベント部門）</div>
+      <div class="seg-amount">¥1,000 / 回</div>
+      <div class="seg-meta">単独商品管理 ｜ 商品ID: 96-110</div>
+      <div class="seg-bar"><div class="seg-bar-fill" style="width:1%"></div></div>
+    </div>
+  </div>
+
+  <div class="grid3">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">月次売上推移（過去12ヶ月）</div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#43a047"></div>練習場・SC</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#c8a84b"></div>スクール</div>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:230px">
+        <canvas id="mainChart" role="img" aria-label="月次売上推移">月次売上データ</canvas>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">5月 売上構成比</div>
+        <span class="panel-tag both">合算</span>
+      </div>
+      <div class="chart-wrap" style="height:170px">
+        <canvas id="pieChart" role="img" aria-label="売上構成円グラフ">売上構成</canvas>
+      </div>
+      <div style="margin-top:14px;display:flex;flex-direction:column;gap:7px;font-size:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:var(--green);font-weight:500">● 練習場・SC</span>
+          <span style="font-family:'JetBrains Mono',monospace;color:var(--text)">¥15,736,375</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:var(--gold);font-weight:500">● スクール</span>
+          <span style="font-family:'JetBrains Mono',monospace;color:var(--text)">¥1,262,425</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:var(--blue);font-weight:500">● 手数料</span>
+          <span style="font-family:'JetBrains Mono',monospace;color:var(--text)">¥93,000</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ② 日次 -->
+<div class="view" id="view-daily">
+  <div class="kpi-strip" style="grid-template-columns:repeat(4,1fr)">
+    <div class="kpi-card">
+      <div class="kpi-label">本日純売上（6/5）</div>
+      <div class="kpi-value">¥157,950</div>
+      <div class="kpi-delta neutral">取引 49件</div>
+      <div class="kpi-source"><span>SMAREGI</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">本日取引単価</div>
+      <div class="kpi-value">¥3,673</div>
+      <div class="kpi-delta up">▲ 今月平均 +31%</div>
+      <div class="kpi-source"><span>SMAREGI</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">6月日平均</div>
+      <div class="kpi-value sm">¥257,434</div>
+      <div class="kpi-delta neutral">5営業日平均</div>
+      <div class="kpi-source"><span>SMAREGI</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">6月累計 / 件数</div>
+      <div class="kpi-value sm">¥1,287,170</div>
+      <div class="kpi-delta neutral">561件</div>
+      <div class="kpi-source"><span>SMAREGI</span></div>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">日別売上（2026年6月）</div>
+        <span class="panel-tag smaregi">SMAREGI</span>
+      </div>
+      <table class="data-tbl">
+        <thead><tr>
+          <th>日付</th><th>曜</th>
+          <th style="text-align:right">純売上</th>
+          <th style="text-align:right">取引</th>
+          <th style="text-align:right">単価</th>
+          <th style="text-align:right">現金</th>
+          <th style="text-align:right">カード</th>
+        </tr></thead>
+        <tbody>
+          <tr><td>6/1</td><td><span class="dow-badge dow-week">月</span></td><td class="num">¥416,190</td><td class="num">166</td><td class="num">¥3,277</td><td class="num">¥202,510</td><td class="num">¥213,680</td></tr>
+          <tr><td>6/2</td><td><span class="dow-badge dow-week">火</span></td><td class="num">¥288,505</td><td class="num">127</td><td class="num">¥2,647</td><td class="num">¥127,335</td><td class="num">¥161,170</td></tr>
+          <tr><td>6/3</td><td><span class="dow-badge dow-week">水</span></td><td class="num">¥83,295</td><td class="num">52</td><td class="num">¥1,772</td><td class="num">¥39,920</td><td class="num">¥43,375</td></tr>
+          <tr><td>6/4</td><td><span class="dow-badge dow-week">木</span></td><td class="num">¥341,230</td><td class="num">167</td><td class="num">¥2,585</td><td class="num">¥154,315</td><td class="num">¥186,915</td></tr>
+          <tr><td>6/5</td><td><span class="dow-badge dow-week">金</span></td><td class="num">¥157,950</td><td class="num">49</td><td class="num">¥3,673</td><td class="num">¥93,495</td><td class="num">¥64,455</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">日別売上チャート</div>
+        <span class="panel-tag smaregi">SMAREGI</span>
+      </div>
+      <div class="chart-wrap" style="height:270px">
+        <canvas id="dayChart" role="img" aria-label="日別売上">日別売上データ</canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ③ 月次 -->
+<div class="view" id="view-monthly">
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">月別売上集計（スマレジ）</div>
+        <span class="panel-tag smaregi">SMAREGI</span>
+      </div>
+      <table class="data-tbl">
+        <thead><tr><th>年月</th><th style="text-align:right">純売上</th><th style="text-align:right">取引数</th><th style="text-align:right">単価</th><th>前月比</th></tr></thead>
+        <tbody id="monthlyTbody"></tbody>
+      </table>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">取引単価トレンド</div>
+        <span class="panel-tag smaregi">SMAREGI</span>
+      </div>
+      <div class="chart-wrap" style="height:190px">
+        <canvas id="arptChart" role="img" aria-label="取引単価推移">単価データ</canvas>
+      </div>
+      <div class="panel-head" style="margin-top:20px;margin-bottom:14px">
+        <div class="panel-title">月間取引件数</div>
+      </div>
+      <div class="chart-wrap" style="height:120px">
+        <canvas id="txChart" role="img" aria-label="取引件数推移">件数データ</canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ④ スクール -->
+<div class="view" id="view-school">
+  <div class="kpi-strip" style="grid-template-columns:repeat(4,1fr)">
+    <div class="kpi-card">
+      <div class="kpi-label">5月プラン売上</div>
+      <div class="kpi-value sm">¥1,262,425</div>
+      <div class="kpi-delta up">▲ 前月比 22.9%</div>
+      <div class="kpi-source"><span>HACOMONO</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">6月プラン（5日時点）</div>
+      <div class="kpi-value sm">¥51,150</div>
+      <div class="kpi-delta neutral">月会費 累積中</div>
+      <div class="kpi-source"><span>HACOMONO</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">6月チケット</div>
+      <div class="kpi-value sm">¥107,700</div>
+      <div class="kpi-delta neutral">レッスン等</div>
+      <div class="kpi-source"><span>HACOMONO</span></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">奥嶋手数料単価</div>
+      <div class="kpi-value">¥1,000</div>
+      <div class="kpi-delta neutral">/ 開催1回</div>
+      <div class="kpi-source"><span>SMAREGI</span></div>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">hacomono プラン売上推移</div>
+        <span class="panel-tag hacomono">HACOMONO</span>
+      </div>
+      <div class="chart-wrap" style="height:230px">
+        <canvas id="hacoChart" role="img" aria-label="hacomonoプラン売上">hacomonoデータ</canvas>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">6月 商品タイプ別内訳</div>
+        <span class="panel-tag hacomono">HACOMONO</span>
+      </div>
+      <div class="haco-breakdown">
+        <div class="haco-row">
+          <div class="haco-label">プラン（月会費・継続）</div>
+          <div class="haco-bar-wrap"><div class="haco-bar-inner" style="width:26.7%"></div></div>
+          <div class="haco-amount">¥51,150</div>
+        </div>
+        <div class="haco-row">
+          <div class="haco-label">チケット（レッスン等）</div>
+          <div class="haco-bar-wrap"><div class="haco-bar-inner" style="width:56.1%"></div></div>
+          <div class="haco-amount">¥107,700</div>
+        </div>
+        <div class="haco-row">
+          <div class="haco-label">その他（体験・入会金）</div>
+          <div class="haco-bar-wrap"><div class="haco-bar-inner" style="width:17.2%"></div></div>
+          <div class="haco-amount">¥33,000</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;padding:14px;background:var(--blue-pale);border-radius:8px;border:1px solid #c0d4f0">
+        <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--blue);margin-bottom:8px;font-weight:500">スマレジ側 スクール関連</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px">
+          <span style="color:var(--text2)">奥嶋スクール開催手数料</span>
+          <span style="font-family:'JetBrains Mono',monospace;color:var(--blue);font-weight:500">¥1,000 × 回数</span>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px">部門: イベント ｜ 商品ID: 96-110</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ⑤ API設定 -->
+<div class="view" id="view-config">
+  <div class="sys-note">
+    <strong>📋 APIキー設定について</strong><br>
+    スマレジ・デベロッパーズ（<code>developers.smaregi.jp</code>）でプライベートアプリを登録すると <strong>クライアントID</strong> と <strong>クライアントシークレット</strong> が発行されます。
+    以下に入力するとリアルタイムでスマレジAPIからデータ取得できるようになります。<br>
+    ※ キーはこのPC・このブラウザのみに保存されます（localStorage）。
+  </div>
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">スマレジ API設定</div><span class="panel-tag smaregi">SMAREGI</span></div>
+      <div class="config-field">
+        <label>契約ID</label>
+        <input type="text" id="cfg_contract" placeholder="skcg554c1" value="skcg554c1">
+      </div>
+      <div class="config-field">
+        <label>クライアントID（発行後に入力）</label>
+        <input type="text" id="cfg_client_id" placeholder="プライベートアプリ登録後に発行されます">
+      </div>
+      <div class="config-field">
+        <label>クライアントシークレット（発行後に入力）</label>
+        <input type="password" id="cfg_client_secret" placeholder="発行後に入力してください">
+      </div>
+      <button class="btn-save" onclick="saveConfig()">✓ 保存して接続</button>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><div class="panel-title">APIキー取得手順</div></div>
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text"><code>developers.smaregi.jp</code> にアクセスし、スマレジIDでログイン</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">「アプリ」→「プライベートアプリ 新規登録」をクリック</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">アプリ名「ZAMAGOLF Dashboard」などで登録<br>スコープ: <code>pos.transactions:read</code> <code>pos.stores:read</code></div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-text">発行された <strong>クライアントID・シークレット</strong> を左欄に入力して「保存」</div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-text">「↻ 更新」ボタンを押すとリアルタイムデータに切り替わります</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<div class="footer">
+  <span>ZAMAGOLF 経営ダッシュボード ｜ 草光建設株式会社</span>
+  <span>SMAREGI プレミアムプラス ｜ hacomono ｜ <span id="footerTs">2026/06/05 14:22</span></span>
+</div>
+
+<script>
+const MONTHLY = [
+  {m:'25/07',sales:12107335,tx:4670,arpt:3187,haco:760100},
+  {m:'25/08',sales:12475230,tx:5056,arpt:3051,haco:674850},
+  {m:'25/09',sales:12612080,tx:4988,arpt:3080,haco:724350},
+  {m:'25/10',sales:13084960,tx:5054,arpt:3195,haco:823900},
+  {m:'25/11',sales:14405525,tx:5450,arpt:3206,haco:714450},
+  {m:'25/12',sales:12526405,tx:4875,arpt:3209,haco:660000},
+  {m:'26/01',sales:13861840,tx:5361,arpt:3236,haco:796950},
+  {m:'26/02',sales:11776090,tx:4411,arpt:3307,haco:810700},
+  {m:'26/03',sales:13759125,tx:5217,arpt:3222,haco:711150},
+  {m:'26/04',sales:13558355,tx:5304,arpt:3137,haco:1027284},
+  {m:'26/05',sales:15829375,tx:6408,arpt:3101,haco:1262425},
+  {m:'26/06',sales:1287170, tx:561, arpt:2810,haco:51150},
+];
+
+function setView(name, btn) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name === 'monthly') buildMonthlyTable();
+}
+function gotoConfig() {
+  document.querySelectorAll('.nav-tab')[4].click();
+}
+
+const gc = () => 'rgba(0,0,0,0.06)';
+const tc = () => '#7a9878';
+
+new Chart(document.getElementById('mainChart'),{
+  type:'bar',
+  data:{labels:MONTHLY.map(d=>d.m),datasets:[
+    {label:'練習場・SC',data:MONTHLY.map(d=>d.sales),backgroundColor:'#66bb6a',borderRadius:3,stack:'a'},
+    {label:'スクール',  data:MONTHLY.map(d=>d.haco), backgroundColor:'#f6d365',borderRadius:3,stack:'a'}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' ¥'+ctx.parsed.y.toLocaleString()}}},
+    scales:{
+      x:{stacked:true,grid:{color:gc()},ticks:{color:tc(),font:{size:10},maxRotation:45}},
+      y:{stacked:true,grid:{color:gc()},ticks:{color:tc(),font:{size:10},callback:v=>'¥'+(v/10000).toFixed(0)+'万'}}
+    }}
+});
+
+new Chart(document.getElementById('pieChart'),{
+  type:'doughnut',
+  data:{labels:['練習場・SC','スクール','手数料'],
+    datasets:[{data:[15736375,1262425,93000],backgroundColor:['#43a047','#c8a84b','#2563a8'],borderWidth:0,hoverOffset:6}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'70%',
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' ¥'+ctx.parsed.toLocaleString()}}}}
+});
+
+new Chart(document.getElementById('dayChart'),{
+  type:'bar',
+  data:{labels:['6/1(月)','6/2(火)','6/3(水)','6/4(木)','6/5(金)'],
+    datasets:[{data:[416190,288505,83295,341230,157950],
+      backgroundColor:['#43a047','#43a047','#e57373','#43a047','#81c784'],borderRadius:5}]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' ¥'+ctx.parsed.y.toLocaleString()}}},
+    scales:{x:{grid:{color:gc()},ticks:{color:tc(),font:{size:11}}},
+            y:{grid:{color:gc()},ticks:{color:tc(),font:{size:10},callback:v=>'¥'+(v/10000).toFixed(0)+'万'}}}}
+});
+
+new Chart(document.getElementById('arptChart'),{
+  type:'line',
+  data:{labels:MONTHLY.map(d=>d.m),datasets:[{
+    data:MONTHLY.map(d=>d.arpt),borderColor:'#2e7d32',backgroundColor:'rgba(46,125,50,0.07)',
+    fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:'#2e7d32',borderWidth:2}]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' ¥'+ctx.parsed.y.toLocaleString()}}},
+    scales:{x:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},maxRotation:45}},
+            y:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},callback:v=>'¥'+v.toLocaleString()},min:2500,max:3500}}}
+});
+
+new Chart(document.getElementById('txChart'),{
+  type:'bar',
+  data:{labels:MONTHLY.map(d=>d.m),datasets:[{data:MONTHLY.map(d=>d.tx),backgroundColor:'#a5d6a7',borderRadius:2}]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.parsed.y.toLocaleString()+'件'}}},
+    scales:{x:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},maxRotation:45}},
+            y:{grid:{color:gc()},ticks:{color:tc(),font:{size:9},callback:v=>v.toLocaleString()}}}}
+});
+
+new Chart(document.getElementById('hacoChart'),{
+  type:'line',
+  data:{labels:MONTHLY.map(d=>d.m),datasets:[{
+    data:MONTHLY.map(d=>d.haco),borderColor:'#b8860b',backgroundColor:'rgba(184,134,11,0.07)',
+    fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:'#b8860b',borderWidth:2}]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' ¥'+ctx.parsed.y.toLocaleString()}}},
+    scales:{x:{grid:{color:gc()},ticks:{color:tc(),font:{size:10},maxRotation:45}},
+            y:{grid:{color:gc()},ticks:{color:tc(),font:{size:10},callback:v=>'¥'+(v/10000).toFixed(0)+'万'}}}}
+});
+
+function buildMonthlyTable(){
+  const tbody = document.getElementById('monthlyTbody');
+  if (tbody.innerHTML !== '') return;
+  const max = Math.max(...MONTHLY.map(d=>d.sales));
+  [...MONTHLY].reverse().forEach((d,i,arr)=>{
+    const prev = arr[i+1];
+    const ratio = prev ? ((d.sales/prev.sales-1)*100) : null;
+    const barW = Math.round(d.sales/max*72);
+    const ratioHtml = ratio !== null
+      ? `<span style="color:${ratio>=0?'var(--green)':'var(--red)'}">${ratio>=0?'▲':'▼'} ${Math.abs(ratio).toFixed(1)}%</span>`
+      : '—';
+    tbody.innerHTML += `<tr>
+      <td style="font-weight:500">${d.m}</td>
+      <td class="num">¥${d.sales.toLocaleString()}<span class="bar-mini" style="width:${barW}px;background:var(--green-light)"></span></td>
+      <td class="num">${d.tx.toLocaleString()}</td>
+      <td class="num">¥${d.arpt.toLocaleString()}</td>
+      <td style="font-size:11px">${ratioHtml}</td>
+    </tr>`;
+  });
+}
+
+function saveConfig(){
+  const id = document.getElementById('cfg_client_id').value.trim();
+  const sec = document.getElementById('cfg_client_secret').value.trim();
+  const con = document.getElementById('cfg_contract').value.trim();
+  if(id && sec){
+    localStorage.setItem('sm_contract',con);
+    localStorage.setItem('sm_client_id',id);
+    localStorage.setItem('sm_client_secret',sec);
+    const b = document.getElementById('apiBadge');
+    b.className='api-badge connected';
+    document.getElementById('apiBadgeText').textContent='API接続済み';
+    alert('設定を保存しました。次回更新からリアルタイムデータを取得します。');
+  } else {
+    alert('クライアントIDとシークレットを入力してください。');
+  }
+}
+
+function refreshData(){
+  const btn = document.querySelector('.refresh-btn');
+  btn.textContent = '↻ 更新中...';
+  setTimeout(()=>{
+    btn.textContent = '↻ 更新';
+    const now = new Date();
+    const ts = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    document.getElementById('lastUpdate').textContent = ts;
+    document.getElementById('footerTs').textContent = ts;
+  }, 1000);
+}
+
+window.addEventListener('DOMContentLoaded',()=>{
+  const id = localStorage.getItem('sm_client_id');
+  if(id){
+    document.getElementById('apiBadge').className='api-badge connected';
+    document.getElementById('apiBadgeText').textContent='API接続済み';
+    document.getElementById('cfg_client_id').value = id;
+    document.getElementById('cfg_client_secret').value = localStorage.getItem('sm_client_secret')||'';
+    document.getElementById('cfg_contract').value = localStorage.getItem('sm_contract')||'';
+  }
+});
+</script>
+</body>
+</html>
