@@ -795,8 +795,11 @@ function renderOutsource(lecturers, mLabels){
 
 // ─── STATIC CHARTS ──────────────────────────────────
 function initStaticCharts(){
-  // 既存チャートを破棄してから再作成
-  Chart.helpers && Object.values(Chart.instances || {}).forEach(c => c.destroy && c.destroy());
+  // Chart.js v4: getChart()で既存インスタンスを破棄
+  ['mainChart','mixChart','compositionChart','schoolMonthlyChart','tcProductivityChart','tcMonthlyChart','tcDailyChart'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { const ch = Chart.getChart(el); if (ch) ch.destroy(); }
+  });
   const gc=()=>'rgba(0,0,0,0.06)', tc=()=>'#7a9878';
 
   new Chart(document.getElementById('mainChart'),{
