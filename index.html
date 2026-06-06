@@ -509,7 +509,7 @@ let CONFIG={contract:'',clientId:'',clientSecret:''};
 async function getToken(){
   if(!CONFIG.clientId||!CONFIG.clientSecret) return null;
   const cred=btoa(`${CONFIG.clientId}:${CONFIG.clientSecret}`);
-  const scope='pos.transactions:read pos.stores:read timecard.work_records:read timecard.staffs:read';
+  const scope='pos.transactions:read pos.stores:read timecard.shifts:read timecard.daily-reports:read timecard.stores:read timecard.staffs:read';
   const tokenUrl=`https://id.smaregi.jp/app/${CONFIG.contract}/token`;
   const r=await fetch(`https://zamagolf-proxy.yanagihara-d46.workers.dev?url=${encodeURIComponent(tokenUrl)}`,{
     method:'POST',
