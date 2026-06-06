@@ -810,7 +810,7 @@ function renderOutsource(lecturers, mLabels){
 // ─── STATIC CHARTS ──────────────────────────────────
 function initStaticCharts(){
   // Chart.js v4: getChart()で既存インスタンスを破棄
-  ['mainChart','mixChart','compositionChart','schoolMonthlyChart','tcProductivityChart','tcMonthlyChart','tcDailyChart'].forEach(id => {
+  ["hourChart", "prodMonthChart", "outsourceChart", "vsChart", "mainChart", "pieChart", "hacoChart", "arptChart", "txChart", "prodChart", "dayChart"].forEach(id => {
     const el = document.getElementById(id);
     if (el) { const ch = Chart.getChart(el); if (ch) ch.destroy(); }
   });
