@@ -795,6 +795,8 @@ function renderOutsource(lecturers, mLabels){
 
 // ─── STATIC CHARTS ──────────────────────────────────
 function initStaticCharts(){
+  // 既存チャートを破棄してから再作成
+  Chart.helpers && Object.values(Chart.instances || {}).forEach(c => c.destroy && c.destroy());
   const gc=()=>'rgba(0,0,0,0.06)', tc=()=>'#7a9878';
 
   new Chart(document.getElementById('mainChart'),{
