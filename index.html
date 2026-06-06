@@ -510,7 +510,7 @@ async function getToken(){
   if(!CONFIG.clientId||!CONFIG.clientSecret) return null;
   const cred=btoa(`${CONFIG.clientId}:${CONFIG.clientSecret}`);
   const scope='pos.transactions:read pos.stores:read timecard.shifts:read timecard.daily-reports:read timecard.stores:read timecard.staffs:read';
-  const tokenUrl=`https://id.smaregi.dev/app/${CONFIG.contract}/token`;
+  const tokenUrl=`https://id.smaregi.jp/app/${CONFIG.contract}/token`;
   const r=await fetch(`https://zamagolf-proxy.yanagihara-d46.workers.dev?url=${encodeURIComponent(tokenUrl)}`,{
     method:'POST',
     headers:{'Authorization':`Basic ${cred}`,'Content-Type':'application/x-www-form-urlencoded'},
@@ -574,15 +574,29 @@ async function loadTimecardData(){
 
   // スタッフ一覧
   const staffs=await apiGet('/timecard/staffs?limit=100');
-  if(staffs) window._staffData=staffs;
 
   // 月別勤怠
-  const works=await apiGet(`/timecard/work_records?year=${y}&month=${parseInt(m)}&limit=100`);
-  if(works){
-    window._workData=works;
-    renderTimecardView(staffs||[], works);
-    updateProductivity();
-  }
+  // 各スタッフの月別勤怠を取得して合計
+  const works=[];
+  const staffList=(staffs&&staffs.staffs)||[];
+  window._staffData=staffs;
+  await Promise.all(staffList.map(async s=>{
+    const res=await apiGet(`/timecard/shifts/staffs/${s.staffId}/monthly?year=${y}&division=result`);
+    if(res && res.shiftMonthly){
+      const monthKey=String(now.getMonth()+1).padStart(2,'0');
+      const md=res.shiftMonthly[monthKey];
+      if(md){
+        Object.values(md).forEach(store=>{
+          if(store && typeof store==='object' && store.totalDutyHour!==undefined){
+            works.push({staffId:s.staffId,storeId:store.storeId,totalDutyHour:parseFloat(store.totalDutyHour)||0,totalDutyMinute:parseInt(store.totalDutyMinute)||0});
+          }
+        });
+      }
+    }
+  }));
+  window._workData={items:works};
+  renderTimecardView(staffList, {items:works});
+  updateProductivity();
 }
 
 // ─── RENDER ─────────────────────────────────────────
