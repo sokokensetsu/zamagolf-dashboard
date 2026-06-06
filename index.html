@@ -624,7 +624,7 @@ function renderTimecardView(staffs, works){
   const hourDist=new Array(24).fill(0);
   (works.items||works||[]).forEach(w=>{
     const id=w.staff_id||w.staffId;
-    const h=parseFloat(w.working_hours||w.workingHours||w.work_hours||0);
+    const h=parseFloat(w.totalDutyHour||w.working_hours||w.workingHours||w.work_hours||0);
     if(staffMap[id]){ staffMap[id].hours+=h; staffMap[id].days+=1; }
     const start=w.start_time||w.startTime||'';
     if(start){ const hr=parseInt(start.split(':')[0])||parseInt(start.split('T')[1]?.split(':')[0])||0; if(hr>=0&&hr<24) hourDist[hr]++; }
