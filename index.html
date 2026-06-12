@@ -571,35 +571,34 @@ async function loadTimecardData(){
   const now=new Date();
   const y=now.getFullYear();
   const m=String(now.getMonth()+1).padStart(2,'0');
+  const todayStr=`${y}-${m}-${String(now.getDate()).padStart(2,'0')}`;
+  const from=`${y}-${m}-01`;
+  const to=todayStr;
 
   // スタッフ一覧
   const staffs=await apiGet('/timecard/staffs?limit=100');
-
-  // 月別勤怠
-  // 各スタッフの月別勤怠を取得して合計
-  const works=[];
   const staffList=(staffs&&staffs.staffs)||[];
   window._staffData=staffs;
-  await Promise.all(staffList.map(async s=>{
-    const res=await apiGet(`/timecard/shifts/staffs/${s.staffId}/monthly?year=${y}&division=result`);
-    if(res && res.shiftMonthly){
-      const monthKey=String(now.getMonth()+1).padStart(2,'0');
-      const md=res.shiftMonthly[monthKey];
-      if(md){
-        Object.values(md).forEach(store=>{
-          if(store && typeof store==='object' && store.totalDutyHour!==undefined){
-            works.push({staffId:s.staffId,storeId:store.storeId,totalDutyHour:parseFloat(store.totalDutyHour)||0,totalDutyMinute:parseInt(store.totalDutyMinute)||0});
-          }
-        });
-      }
-    }
-  }));
-  window._workData={items:works};
-  renderTimecardView(staffList, {items:works});
+
+  // 勤怠実績一覧（日別・1勤務=1レコード）を取得
+  // 月初〜本日までを取得し、staff_idごとに「日付ごとの労働時間」を正しく集計する
+  let results=[];
+  let page=1;
+  const maxPages=5; // 上限2000件/ページ × 5ページ = 月間データとしては十分
+  while(page<=maxPages){
+    const res=await apiGet(`/timecard/shifts/results?from_date=${from}&to_date=${to}&limit=2000&page=${page}`);
+    if(res && Array.isArray(res.results) && res.results.length){
+      results=results.concat(res.results);
+      if(!res.pageCount || res.page>=res.pageCount) break;
+      page++;
+    } else break;
+  }
+  window._workData={items:results, todayStr};
+  renderTimecardView(staffList, {items:results, todayStr});
   updateProductivity();
 }
 
-// ─── RENDER ─────────────────────────────────────────
+// ─── RENDER ────────────────────────────────────────────
 function renderDailyTable(data){
   const days=['日','月','火','水','木','金','土'];
   const dow_cls=['dow-sun','dow-week','dow-week','dow-week','dow-week','dow-week','dow-sat'];
@@ -619,18 +618,27 @@ function renderDailyTable(data){
 function renderTimecardView(staffs, works){
   // スタッフ別集計
   const staffMap={};
-  (staffs.items||staffs||[]).forEach(s=>{ staffMap[s.staff_id||s.staffId]={name:s.staff_name||s.name||s.staffName||'不明',hours:0,days:0}; });
+  (staffs.items||staffs||[]).forEach(s=>{ staffMap[String(s.staff_id||s.staffId)]={name:s.staff_name||s.name||s.staffName||'不明',hours:0,daySet:new Set()}; });
 
   const hourDist=new Array(24).fill(0);
-  (works.items||works||[]).forEach(w=>{
-    const id=w.staff_id||w.staffId;
-    const h=parseFloat(w.totalDutyHour||w.working_hours||w.workingHours||w.work_hours||0);
-    if(staffMap[id]){ staffMap[id].hours+=h; staffMap[id].days+=1; }
-    const start=w.start_time||w.startTime||'';
-    if(start){ const hr=parseInt(start.split(':')[0])||parseInt(start.split('T')[1]?.split(':')[0])||0; if(hr>=0&&hr<24) hourDist[hr]++; }
+  const items=works.items||works||[];
+  const todayStr=works.todayStr;
+  const todayStaffSet=new Set();
+  items.forEach(w=>{
+    const id=String(w.staffId||w.staff_id);
+    const minutes=parseInt(w.workingMinutes)||0;
+    const h=minutes/60;
+    const shiftDate=w.shiftDate||'';
+    if(staffMap[id]){
+      staffMap[id].hours+=h;
+      if(shiftDate) staffMap[id].daySet.add(shiftDate);
+    }
+    if(todayStr && shiftDate===todayStr) todayStaffSet.add(id);
+    const start=w.attendanceAtRounded||w.attendanceAt||w.start_time||w.startTime||'';
+    if(start){ const hr=parseInt(start.split('T')[1]?.split(':')[0])||parseInt(start.split(':')[0])||0; if(hr>=0&&hr<24) hourDist[hr]++; }
   });
 
-  const staffArr=Object.values(staffMap).filter(s=>s.hours>0).sort((a,b)=>b.hours-a.hours);
+  const staffArr=Object.values(staffMap).map(s=>({name:s.name,hours:s.hours,days:s.daySet.size})).filter(s=>s.hours>0).sort((a,b)=>b.hours-a.hours);
   const maxH=staffArr.length?staffArr[0].hours:1;
   const totalH=staffArr.reduce((s,x)=>s+x.hours,0);
 
@@ -638,7 +646,7 @@ function renderTimecardView(staffs, works){
   setText('tc-total-hours', totalH>0?`${totalH.toFixed(1)}h`:'--');
   setText('tc-avg-hours', staffArr.length?`${(totalH/staffArr.length).toFixed(1)}h`:'--');
   setText('tc-staff-count', `${staffArr.length}名`);
-  setText('tc-today-staff', '--');
+  setText('tc-today-staff', todayStr?`${todayStaffSet.size}名`:'--');
 
   // スタッフテーブル
   let html='<table class="data-tbl"><thead><tr><th>スタッフ</th><th style="text-align:right">労働時間</th><th style="text-align:right">出勤日数</th><th>稼働比</th></tr></thead><tbody>';
