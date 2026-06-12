@@ -283,6 +283,16 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-seri
     <div class="kpi-card"><div class="kpi-label">今月日平均</div><div class="kpi-value sm" id="d-avg">--</div><div class="kpi-source"><span>SMAREGI</span></div></div>
     <div class="kpi-card"><div class="kpi-label">今月累計 / 件数</div><div class="kpi-value sm" id="d-cumul">--</div><div class="kpi-source"><span>SMAREGI</span></div></div>
   </div>
+  <div class="panel" style="margin-bottom:18px">
+    <div class="panel-head"><div class="panel-title">日別売上CSV取込</div><span class="panel-tag smaregi">CSV</span></div>
+    <div class="upload-zone" id="dailyUploadZone" onclick="document.getElementById('dailyCsvInput').click()" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleDailyCsvDrop(event)">
+      <div class="icon">📊</div>
+      <div class="title">「日別売上」CSVをドラッグ&ドロップ</div>
+      <div class="sub">スマレジ管理画面の売上分析 → 日別売上 からダウンロードしたCSVファイル</div>
+    </div>
+    <input type="file" id="dailyCsvInput" accept=".csv" style="display:none" onchange="handleDailyCsvFile(this.files[0])">
+    <div id="dailyCsvStatus" style="margin-top:10px;font-size:12px;color:var(--green)"></div>
+  </div>
   <div class="grid2">
     <div class="panel">
       <div class="panel-head"><div class="panel-title">日別売上（今月）</div><span class="panel-tag smaregi">SMAREGI</span></div>
@@ -704,7 +714,105 @@ function updateProductivity(){
   });
 }
 
-// ─── EXCEL UPLOAD ────────────────────────────────────
+// ─── CSV UPLOAD（日別売上） ──────────────────────────────
+function handleDailyCsvDrop(e){
+  e.preventDefault();
+  document.getElementById('dailyUploadZone').classList.remove('drag-over');
+  const f=e.dataTransfer.files[0];
+  if(f) handleDailyCsvFile(f);
+}
+
+function handleDailyCsvFile(file){
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const buf=new Uint8Array(e.target.result);
+      const text=new TextDecoder('shift-jis').decode(buf);
+      parseDailySalesCSV(text, file.name);
+    }catch(err){ alert('CSVの読み込みに失敗しました: '+err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseCsvLine(line){
+  const out=[]; let cur=''; let inQ=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(c==='"'){ inQ=!inQ; continue; }
+    if(c===','&&!inQ){ out.push(cur); cur=''; continue; }
+    cur+=c;
+  }
+  out.push(cur);
+  return out;
+}
+
+function parseDailySalesCSV(text, filename){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim());
+  if(!lines.length){ alert('CSVが空です。'); return; }
+  const header=parseCsvLine(lines[0]);
+  const idxDate=header.indexOf('日付');
+  const idxSales=header.indexOf('純売上');
+  const idxTx=header.indexOf('取引数');
+  const idxItems=header.indexOf('販売点数');
+  const idxArpt=header.indexOf('取引単価');
+  if(idxDate<0||idxSales<0){ alert('「日別売上」CSVの形式が認識できませんでした。スマレジの売上分析 → 日別売上からダウンロードしたCSVをご利用ください。'); return; }
+
+  const daily=[];
+  let totalRow=null;
+  for(let i=1;i<lines.length;i++){
+    const cols=parseCsvLine(lines[i]);
+    const dateStr=(cols[idxDate]||'').trim();
+    if(/^\d{4}\/\d{2}\/\d{2}$/.test(dateStr)){
+      daily.push({
+        date: dateStr.replace(/\//g,'-'),
+        net_sales: Number(cols[idxSales]||0),
+        transaction_count: idxTx>=0?Number(cols[idxTx]||0):0
+      });
+    } else if(dateStr==='合計'){
+      totalRow={
+        sales: Number(cols[idxSales]||0),
+        items: idxItems>=0?Number(cols[idxItems]||0):0,
+        arpt: idxArpt>=0?Number(cols[idxArpt]||0):0
+      };
+    }
+  }
+  if(!daily.length){ alert('日別データが見つかりませんでした。'); return; }
+
+  const [yy,mm]=daily[0].date.split('-');
+  const monthLabel=`${yy.slice(2)}/${mm}`;
+
+  const payload={daily, totalRow, monthLabel, filename, uploadedAt:new Date().toISOString()};
+  localStorage.setItem('daily_sales_csv', JSON.stringify(payload));
+  applyDailySalesData(payload);
+}
+
+function applyDailySalesData(payload){
+  window._dailyData=payload.daily;
+  renderDailyTable(payload.daily);
+  renderDayChart(payload.daily);
+  updateDailyKPIs(payload.daily);
+
+  // MONTHLY配列の対応月をCSVの実データで上書き
+  if(payload.totalRow){
+    const mEntry=MONTHLY.find(x=>x.m===payload.monthLabel);
+    if(mEntry){
+      mEntry.sales=payload.totalRow.sales;
+      if(payload.totalRow.items) mEntry.tx=payload.totalRow.items;
+      if(payload.totalRow.arpt) mEntry.arpt=payload.totalRow.arpt;
+    }
+  }
+
+  updateKPIs();
+  updateProductivity();
+
+  const el=document.getElementById('dailyCsvStatus');
+  if(el){
+    const d=new Date(payload.uploadedAt);
+    el.textContent=`✓ ${payload.monthLabel}（${payload.daily.length}日分）を取込済み — ${payload.filename}　(取込: ${d.toLocaleString('ja-JP')})`;
+  }
+}
+
 function handleDrop(e){
   e.preventDefault();
   document.getElementById('uploadZone').classList.remove('drag-over');
@@ -985,6 +1093,15 @@ function initApp(){
       document.getElementById('uploadSuccess').style.display='block';
       document.getElementById('uploadFileName').textContent=d.filename||'保存済みデータ';
       renderOutsource(d.lecturers, d.mLabels);
+    } catch(e){}
+  }
+
+  // 日別売上CSVデータ復元
+  const savedDaily=localStorage.getItem('daily_sales_csv');
+  if(savedDaily){
+    try{
+      const d=JSON.parse(savedDaily);
+      applyDailySalesData(d);
     } catch(e){}
   }
 
