@@ -544,6 +544,7 @@ async function loadAllData(){
       await Promise.all([loadDailyData(), loadTimecardData()]);
     }
     updateKPIs();
+    updateProductivity();
     updateTimestamp();
   } catch(e){ console.error(e); }
   btn.textContent='↻ 更新';
@@ -595,7 +596,6 @@ async function loadTimecardData(){
   }
   window._workData={items:results, todayStr};
   renderTimecardView(staffList, {items:results, todayStr});
-  updateProductivity();
 }
 
 // ─── RENDER ────────────────────────────────────────────
